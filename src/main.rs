@@ -18,6 +18,8 @@ use clap::Parser;
 use csv::{ReaderBuilder, WriterBuilder};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -41,8 +43,8 @@ struct Cli {
 }
 
 fn read_updated_record_file(p: &Path) -> Result<Vec<CostRecord>> {
-    let updated_costs = std::fs::read_to_string(p)
-        .with_context(|| format!("failed to read {:?}", p))?;
+    let updated_costs =
+        std::fs::read_to_string(p).with_context(|| format!("failed to read {:?}", p))?;
     let trimmed = if let Some(end_of_records) = updated_costs.rfind("---") {
         &updated_costs[0..end_of_records]
     } else {
@@ -103,6 +105,13 @@ fn merge_cost_updates(args: &Cli) -> Result<()> {
     for (_test_name, record) in record_map.into_iter() {
         csv_writer.serialize(record)?;
     }
+    drop(csv_writer);
+    let mut cost_file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(&args.output)?;
+    write!(&mut cost_file, "---")
+        .with_context(|| format!("Failed to write terminator to {cost_file:?}"))?;
     Ok(())
 }
 
