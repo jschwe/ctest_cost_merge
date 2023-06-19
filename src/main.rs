@@ -41,23 +41,37 @@ struct Cli {
 }
 
 fn read_updated_record_file(p: &Path) -> Result<Vec<CostRecord>> {
+    let updated_costs = std::fs::read_to_string(p)
+        .with_context(|| format!("failed to read {:?}", p))?;
+    let trimmed = if let Some(end_of_records) = updated_costs.rfind("---") {
+        &updated_costs[0..end_of_records]
+    } else {
+        &updated_costs
+    };
     let mut reader = ReaderBuilder::new()
         .delimiter(b' ')
         .has_headers(false)
-        .from_path(p)
-        .context("Failed to read original file")?;
+        .from_reader(trimmed.as_bytes());
     let records: Vec<CostRecord> = reader
         .deserialize()
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .with_context(|| format!("failed to deserialize record from file {:?}", p))?;
     Ok(records)
 }
 
 fn merge_cost_updates(args: &Cli) -> Result<()> {
+    let original_file = std::fs::read_to_string(&args.original)
+        .with_context(|| format!("failed to read {:?}", &args.original))?;
+    let trimmed = if let Some(end_of_records) = original_file.rfind("---") {
+        &original_file[0..end_of_records]
+    } else {
+        &original_file
+    };
     let mut original_reader = ReaderBuilder::new()
         .delimiter(b' ')
         .has_headers(false)
-        .from_path(&args.original)
-        .context("Failed to read original file")?;
+        .from_reader(trimmed.as_bytes());
+
     let mut record_map = IndexMap::new();
     for res in original_reader.deserialize() {
         let record: CostRecord = res.with_context(|| {
