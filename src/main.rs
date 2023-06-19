@@ -13,13 +13,12 @@
 //! This is where this tool kicks in and allows you to merge updated cost files back into one
 //! output cost file.
 
-use std::path::{Path, PathBuf};
-
 use anyhow::{Context, Result};
 use clap::Parser;
 use csv::{ReaderBuilder, WriterBuilder};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct CostRecord {
@@ -61,7 +60,12 @@ fn merge_cost_updates(args: &Cli) -> Result<()> {
         .context("Failed to read original file")?;
     let mut record_map = IndexMap::new();
     for res in original_reader.deserialize() {
-        let record: CostRecord = res.context("Failed to deserialise record")?;
+        let record: CostRecord = res.with_context(|| {
+            format!(
+                "Failed to deserialise record from file: {:?}",
+                args.original
+            )
+        })?;
         let res = record_map.insert(record.test_name.clone(), record);
         assert!(res.is_none(), "Record for test was already present");
     }
